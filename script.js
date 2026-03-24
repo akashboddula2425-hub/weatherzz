@@ -179,8 +179,17 @@ async function loadWeather(city = 'London') {
     updateDaily(data, geo.timezone);
   } catch (error) {
     console.error('Weather load error:', error);
-    // Fallback to static/mock
-    alert('Using mock data for ' + city);
+    if (city && city.toLowerCase() !== 'london') {
+      // Likely unknown city or network issue: gracefully fallback to London
+      console.warn(`City not found or service unavailable for '${city}', falling back to London.`);
+      if (document.getElementById('city-search')) {
+        document.getElementById('city-search').value = 'London';
+      }
+      await loadWeather('London');
+    } else {
+      // After failing for default city, do not keep recursing.
+      console.error('Fallback default city also failed. Check API availability.');
+    }
   }
 }
 
