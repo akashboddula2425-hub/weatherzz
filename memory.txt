@@ -1,0 +1,14 @@
+Weather Website Memory File
+- Built functional weather dashboard from original index.html (static UI matching screen.png).
+- Added Open-Meteo API (no key): city search, geolocation (reverse geocoding for location name), current/hourly/daily forecasts with emoji icons.
+- Buttons: Location in search bar (map-pin-off.png), Dark mode toggle (moon-star.png, data-theme/localStorage), Share (share-2.png, "[Location] [Temp] [Condition] [Emoji]", native/clipboard).
+- UI preserved: Glassmorphism, responsive, Tailwind, no structural changes.
+- Features: Live time, dynamic data populates placeholders, dark CSS overrides.
+- Latest: Share text "Location Temp Condition Emoji", geolocation shows city name.
+- Files: index.html (frontend + script), script.js (logic), PNGs used.
+- Added calendar button/modal (calendar-1.png): Date picker for historical/forecast weather at location, shows max/min temp + emoji/condition in glass modal.
+- Calendar removed per user request (wasn't solving issue).
+- Optimized location button: Added loading spinner, skipped CORS-prone reverse geocode (faster load), lower timeout/high accuracy false, auto London fallback, button state management.
+- Used memory.txt efficiently: Preserved original features, removed failed experiments.
+- Enhanced calendar: Now shows max/min temperatures (e.g., "25°/18°") for better temperature range visibility.
+- Updated copyright to 2026.
