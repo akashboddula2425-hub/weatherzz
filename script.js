@@ -29,7 +29,7 @@ const weatherMap = {
 
 // Get weather data for lat/lon
 async function fetchWeather(lat, lon, timezone) {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&hourly=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=${timezone}&forecast_days=7`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&hourly=temperature_2m,relativehumidity_2m,weathercode&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=${timezone}&forecast_days=7`;
   const response = await fetch(url);
   if (!response.ok) throw new Error('Weather fetch failed');
   return await response.json();
@@ -67,14 +67,22 @@ function updateCurrent(data, timezone) {
   const humidityEl = section.querySelector('p.text-lg.font-semibold');
   const windEl = section.querySelectorAll('p.text-lg.font-semibold')[1];
 
-  const code = data.current.weather_code;
+  const code = (data.current_weather && data.current_weather.weathercode) || 0;
   const weather = weatherMap[code] || weatherMap.default;
-  
-  tempEl.textContent = `${Math.round(data.current.temperature_2m)}°C`;
+
+  // Ideally get humidity from the closest matching current hour
+  let humidity = 'N/A';
+  if (data.hourly && Array.isArray(data.hourly.time) && data.hourly.relativehumidity_2m) {
+    const nowIso = new Date().toISOString().slice(0, 13); // hour precision
+    const index = data.hourly.time.findIndex(t => t.startsWith(nowIso));
+    if (index !== -1) humidity = `${Math.round(data.hourly.relativehumidity_2m[index])}%`;
+  }
+
+  tempEl.textContent = `${Math.round(data.current_weather.temperature)}°C`;
   iconSpan.innerHTML = `<span class="${weather.color} text-3xl">${weather.icon}</span>`;
   conditionEl.textContent = weather.condition;
-  humidityEl.textContent = `${data.current.relative_humidity_2m}%`;
-  windEl.textContent = `${Math.round(data.current.wind_speed_10m * 2.237)}mph`; // m/s to mph
+  humidityEl.textContent = humidity;
+  windEl.textContent = `${Math.round(data.current_weather.windspeed * 2.237)}mph`; // m/s to mph
 }
 
 // Update hourly forecast (next 7 hours)
@@ -84,7 +92,7 @@ function updateHourly(data, timezone) {
   const hours = data.hourly.time.slice(0, 7).map((time, i) => {
     const hourDate = new Date(time);
     const hour = hourDate.toLocaleTimeString('en-US', { hour: 'numeric', timeZone: timezone });
-    return { temp: Math.round(data.hourly.temperature_2m[i]), code: data.hourly.weather_code[i], hour };
+    return { temp: Math.round(data.hourly.temperature_2m[i]), code: data.hourly.weathercode[i], hour };
   });
 
   container.innerHTML = hours.map(({hour, temp, code}) => {
@@ -116,7 +124,7 @@ function updateDaily(data, timezone) {
     // Today first
     const todayDay = new Date(data.daily.time[todayIndex]);
     const todayMax = Math.round(data.daily.temperature_2m_max[todayIndex]);
-    const todayCode = data.daily.weather_code[todayIndex];
+    const todayCode = data.daily.weathercode[todayIndex];
     reorderedData.push({ dayName: 'Today', maxTemp: todayMax, code: todayCode, isToday: true });
     
     // Remaining days
@@ -125,7 +133,7 @@ function updateDaily(data, timezone) {
         const dayDate = new Date(time);
         const dayName = days[dayDate.getDay()];
         const maxTemp = Math.round(data.daily.temperature_2m_max[i]);
-        const code = data.daily.weather_code[i];
+        const code = data.daily.weathercode[i];
         reorderedData.push({ dayName, maxTemp, code, isToday: false });
       }
     });
@@ -135,7 +143,7 @@ function updateDaily(data, timezone) {
       const dayDate = new Date(time);
       const dayName = days[dayDate.getDay()];
       const maxTemp = Math.round(data.daily.temperature_2m_max[i]);
-      const code = data.daily.weather_code[i];
+      const code = data.daily.weathercode[i];
       return { dayName, maxTemp, code, isToday: false };
     }));
   }
@@ -161,6 +169,11 @@ async function loadWeather(city = 'London') {
   try {
     const geo = await geocodeCity(city);
     const data = await fetchWeather(geo.latitude, geo.longitude, geo.timezone);
+    currentLat = geo.latitude;
+    currentLon = geo.longitude;
+    currentTimezone = geo.timezone;
+    currentData = data;
+
     updateCurrent(data, geo.timezone);
     updateHourly(data, geo.timezone);
     updateDaily(data, geo.timezone);
@@ -177,8 +190,9 @@ let currentLon = null;
 let currentTimezone = null;
 document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.getElementById('city-search');
-  searchInput.addEventListener('keypress', (e) => {
+  searchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       const city = searchInput.value.trim() || 'London';
       loadWeather(city);
     }
@@ -203,6 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
       currentLocationName = 'Current location';
       
       const data = await fetchWeather(currentLat, currentLon, currentTimezone);
+      currentData = data;
       updateCurrent(data, currentTimezone);
       updateHourly(data, currentTimezone);
       updateDaily(data, currentTimezone);
